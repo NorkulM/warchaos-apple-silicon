@@ -1,6 +1,6 @@
 #!/bin/bash
 # ===========================================================================
-# Launch WarChaos through the Game Porting Toolkit wine prefix.
+# Launch WarChaos through Wine 11 on Apple Silicon.
 #
 # Override the install location if you installed elsewhere:
 #   GAME_DIR="$HOME/Desktop/Warface/WarChaos" ./scripts/launch.sh
@@ -19,13 +19,12 @@ if [ ! -d "$GAME_DIR" ]; then
   exit 1
 fi
 
-# Find the entry executable (the launcher / game client).
+# Find the entry executable (the launcher).
 GAME_EXE="${GAME_EXE:-}"
 if [ -z "$GAME_EXE" ]; then
   for cand in \
     "$GAME_DIR/Bin64Release/WarChaos Begins.exe" \
-    "$GAME_DIR/WarChaos Begins.exe" \
-    "$GAME_DIR/Bin64Release/pcnsl.exe"; do
+    "$GAME_DIR/WarChaos Begins.exe"; do
     [ -f "$cand" ] && GAME_EXE="$cand" && break
   done
 fi

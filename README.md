@@ -11,9 +11,11 @@ There is no native macOS build. This works by stacking three translation layers:
 | **Rosetta 2** | x86-64 instructions → Apple ARM |
 | **D3DMetal** (Game Porting Toolkit) | DirectX 11/12 → Metal |
 
-> **Status:** ⚠️ Experimental / work in progress. The Windows installer runs and downloads
-> the game on Apple Silicon (see fixes below). The in-game result is being validated —
-> see [Status & limitations](#status--limitations).
+> **Status:** ⚠️ Partial. The Windows installer runs and the **full game downloads &
+> installs (~29 GB)** on Apple Silicon. The **game launcher (`WarChaos Begins.exe`,
+> Qt 6) currently crashes during start-up** under the Game Porting Toolkit's Wine 7.7.
+> See [Status & limitations](#status--limitations) for the exact blocker — this is the
+> part where help from the WarChaos team would unlock everything.
 
 ---
 
@@ -52,7 +54,10 @@ ICU for .NET, and the WPF software-render fix. Then:
 source scripts/env.sh
 "$WINE" /path/to/WarChaosInstaller.exe      # default install target: ~/Desktop/Warface/WarChaos
 
-# 2) once the download finishes, launch the game
+# 2) after the game is installed, build the icu.dll shim the native client needs
+./scripts/build-icu-shim.sh
+
+# 3) launch (NOTE: the Qt 6 launcher currently crashes at start-up — see Status below)
 ./scripts/launch.sh
 ```
 
@@ -113,6 +118,8 @@ Every error we actually hit, and the fix:
 | Installer: `COMException (0x88980406)` in `HwndTarget` / `DUCE.Channel` | WPF hardware rendering fails under Wine | `DisableHWAcceleration=1` (step 5) |
 | `preloader: Warning: failed to reserve range ...` | Benign Rosetta/GPTK memory warnings | Ignore |
 | `wine: failed to start ...syswow64...` | 64-bit-only wine has no 32-bit (WoW64) | Ignore (installer & game are 64-bit) |
+| Game exits instantly, code 3, log shows `find_forwarded_export ... icuuc.dll` | Native client needs a Windows `icu.dll` | Run `scripts/build-icu-shim.sh` |
+| Launcher shows **"Wine C++ Runtime Library"** abort after `qwindows.dll` | Qt 6 platform-plugin / COM init fails on Wine 7.7 | **Open blocker** — needs newer Wine (CrossOver/newer GPTK). See Status |
 
 Handy commands:
 ```bash
@@ -125,14 +132,48 @@ MTL_HUD_ENABLED=1 ./scripts/launch.sh   # show a Metal FPS/perf overlay
 
 ## Status & limitations
 
-- ✅ Rosetta + GPTK + prefix setup: working on M4 / macOS 27.
-- ✅ .NET WPF installer: runs and downloads the full game (~31 GB) after the ICU + WPF fixes.
-- ❓ **In-game (CryEngine / DirectX → Metal):** being validated — results, FPS and any extra
-  flags will be documented here.
-- ❓ **Online / anti-cheat:** unknown. Confirm with WarChaos staff before playing online.
+What works on Apple Silicon (verified on M4 / macOS 27):
 
-If you get it working (or hit new errors/fixes), please open an issue or PR so we can keep
-this guide accurate for the whole Apple Silicon community. 🙌
+- ✅ Rosetta 2 + Game Porting Toolkit (Gcenx, Wine 7.7 + D3DMetal) + Wine prefix.
+- ✅ The `.NET 10` WPF installer runs (after the **real-ICU** + **WPF software-render** fixes).
+- ✅ It downloads & assembles the **full ~29 GB game** into `~/Desktop/Warface/WarChaos`.
+- ✅ The native game's ICU dependency is solved with a generated `icu.dll` shim
+  (`scripts/build-icu-shim.sh`) → `Qt6Core` loads and `WarChaos Begins.exe` starts.
+
+### ❌ Current blocker: the Qt 6 launcher crashes during start-up
+
+After the ICU fix, `WarChaos Begins.exe` (the Qt 6 / QML login launcher — class
+`LauncherBackend`, with account + Discord login) gets a bit further and then dies with a
+**"Wine C++ Runtime Library"** abort. Module load order before the crash:
+
+```
+Qt6Core → Qt6Gui → Qt6Network → Qt6Qml → Qt6Quick → Qt6Multimedia → qwindows.dll → 💥
+```
+
+- It crashes **right after `qwindows.dll`** (the Qt Windows platform plugin) initializes,
+  which pulls in `opengl32` / `wined3d` / `d3d9`.
+- `WINEDEBUG=+seh` shows repeated **`0x6BA` (RPC_S_SERVER_UNAVAILABLE)** exceptions plus a
+  failed `Windows.UI.ViewManagement.UISettings` COM activation (Qt's COM/UIAutomation /
+  accessibility bridge) before the abort.
+- It is **independent of the Qt render backend** — `QT_QUICK_BACKEND=software`,
+  `QSG_RHI_BACKEND=d3d11`, and `QT_ACCESSIBILITY=0` all crash identically.
+
+**Most likely cause:** the Game Porting Toolkit ships **Wine 7.7 (2022)**, which is too old
+for this modern Qt 6 build's `qwindows` platform plugin / COM init.
+
+**Things that would unlock it (help wanted):**
+- A **newer Wine** with D3DMetal — e.g. **CrossOver 24+** or a newer GPTK build. This is the
+  single most promising next step.
+- From the **WarChaos team**: a launcher flag to skip the Qt UI and run the client directly,
+  a Wine-compatible launcher build, or guidance on the start-up COM/RPC calls.
+
+### Other unknowns
+- **Anti-cheat:** the client contains a **`ClientProtection`** system. Even once the launcher
+  runs, online play may be flagged/blocked under Wine. **Confirm with WarChaos staff.**
+- **In-game rendering / FPS (CryEngine → D3DMetal):** not reached yet (gated by the launcher).
+
+If you get past the launcher (or hit new errors/fixes), please open an issue or PR so we can
+keep this guide accurate for the whole Apple Silicon community. 🙌
 
 ---
 
