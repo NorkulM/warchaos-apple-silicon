@@ -11,11 +11,9 @@ There is no native macOS build. This works by stacking three translation layers:
 | **Rosetta 2** | x86-64 instructions → Apple ARM |
 | **D3DMetal** (Game Porting Toolkit) | DirectX 11/12 → Metal |
 
-> **Status:** ⚠️ Partial. The Windows installer runs and the **full game downloads &
-> installs (~29 GB)** on Apple Silicon. The **game launcher (`WarChaos Begins.exe`,
-> Qt 6) currently crashes during start-up** under the Game Porting Toolkit's Wine 7.7.
-> See [Status & limitations](#status--limitations) for the exact blocker — this is the
-> part where help from the WarChaos team would unlock everything.
+> **Status:** ✅ **WORKING on Apple Silicon (M4 / macOS 27 beta)!** Installer runs,
+> launcher logs in, and the **game client opens and is playable**. See
+> [Status & limitations](#status--limitations) for details.
 
 ---
 
@@ -132,45 +130,49 @@ MTL_HUD_ENABLED=1 ./scripts/launch.sh   # show a Metal FPS/perf overlay
 
 ## Status & limitations
 
-What works on Apple Silicon (verified on M4 / macOS 27):
+What works on Apple Silicon (verified on M4 / macOS 27 beta):
 
-- ✅ Rosetta 2 + Game Porting Toolkit (Gcenx, Wine 7.7 + D3DMetal) + Wine prefix.
+- ✅ Rosetta 2 + Wine 11.10 Staging (Gcenx prebuilt).
 - ✅ The `.NET 10` WPF installer runs (after the **real-ICU** + **WPF software-render** fixes).
 - ✅ It downloads & assembles the **full ~29 GB game** into `~/Desktop/Warface/WarChaos`.
 - ✅ The native game's ICU dependency is solved with a generated `icu.dll` shim
   (`scripts/build-icu-shim.sh`) → `Qt6Core` loads and `WarChaos Begins.exe` starts.
+- ✅ **The Qt 6 launcher is fully functional** — login, Discord, videos, UI all work.
+- ✅ **The CryEngine game client opens and is playable.**
 
-### ❌ Current blocker: the Qt 6 launcher crashes during start-up
+### The winning configuration
 
-After the ICU fix, `WarChaos Begins.exe` (the Qt 6 / QML login launcher — class
-`LauncherBackend`, with account + Discord login) gets a bit further and then dies with a
-**"Wine C++ Runtime Library"** abort. Module load order before the crash:
+After extensive debugging, the combination that makes everything work on macOS 27 beta:
 
-```
-Qt6Core → Qt6Gui → Qt6Network → Qt6Qml → Qt6Quick → Qt6Multimedia → qwindows.dll → 💥
-```
+| Component | Setting | Why |
+|-----------|---------|-----|
+| Wine version | **11.10 Staging** (Gcenx) | GPTK's Wine 7.7 is too old for Qt 6 |
+| Qt RHI backend | `QSG_RHI_BACKEND=opengl` | Software & D3D11 backends fail under Wine; OpenGL is the only one Wine implements well |
+| Direct3D | `OffscreenRenderingMode=backbuffer` | Fixes `GL_INVALID_FRAMEBUFFER_OPERATION` on macOS |
+| Mac driver | `Decorated=Y` | winemac presents decorated windows reliably on macOS 27 beta |
+| Qt darkmode | `windows:darkmode=0` | Avoids `Windows.UI.ViewManagement.UISettings` COM crash |
+| Qt DPI | `QT_AUTO_SCREEN_SCALE_FACTOR=0` | Avoids `SetProcessDpiAwarenessContext()` failure |
+| .NET globalization | Real ICU 72 + forwarder shim | .NET 10 needs ICU; Wine has none |
+| WPF rendering | `DisableHWAcceleration=1` | Fixes `COMException 0x88980406` |
 
-- It crashes **right after `qwindows.dll`** (the Qt Windows platform plugin) initializes,
-  which pulls in `opengl32` / `wined3d` / `d3d9`.
-- `WINEDEBUG=+seh` shows repeated **`0x6BA` (RPC_S_SERVER_UNAVAILABLE)** exceptions plus a
-  failed `Windows.UI.ViewManagement.UISettings` COM activation (Qt's COM/UIAutomation /
-  accessibility bridge) before the abort.
-- It is **independent of the Qt render backend** — `QT_QUICK_BACKEND=software`,
-  `QSG_RHI_BACKEND=d3d11`, and `QT_ACCESSIBILITY=0` all crash identically.
+### Known issues
 
-**Most likely cause:** the Game Porting Toolkit ships **Wine 7.7 (2022)**, which is too old
-for this modern Qt 6 build's `qwindows` platform plugin / COM init.
+- **Anti-cheat:** the client contains a **`ClientProtection`** system. It did not block us
+  during testing, but **confirm with WarChaos staff** before playing online extensively.
+- **Resolution:** first boot may pick a wrong resolution. Change it in-game (Settings → Video).
+- **Performance:** not yet benchmarked. The game runs through Rosetta 2 + Wine + D3DMetal
+  (DirectX → Metal). Expect playable but not native FPS. `MTL_HUD_ENABLED=1` shows an FPS overlay.
+- **macOS beta:** tested on macOS 27 beta (Golden Gate). On stable macOS 26+ the `Decorated=Y`
+  workaround may not be needed — try removing it first.
 
-**Things that would unlock it (help wanted):**
-- A **newer Wine** with D3DMetal — e.g. **CrossOver 24+** or a newer GPTK build. This is the
-  single most promising next step.
-- From the **WarChaos team**: a launcher flag to skip the Qt UI and run the client directly,
-  a Wine-compatible launcher build, or guidance on the start-up COM/RPC calls.
+### If the game client doesn't open
 
-### Other unknowns
-- **Anti-cheat:** the client contains a **`ClientProtection`** system. Even once the launcher
-  runs, online play may be flagged/blocked under Wine. **Confirm with WarChaos staff.**
-- **In-game rendering / FPS (CryEngine → D3DMetal):** not reached yet (gated by the launcher).
+The launcher spawns the game client as a separate process. If clicking "Play" does nothing:
+1. Check if the game exe is at `Bin64Release/WarChaos Begins.exe` inside the install folder.
+2. The launcher may have launched it with specific command-line args — check the launcher's
+   diagnostic log at `Bin64Release/WarChaosBeginsBootstrap.diagnostic.log`.
+3. Try running the game client directly (bypassing the launcher) — the launcher generates
+   a command line that you can capture from the log.
 
 If you get past the launcher (or hit new errors/fixes), please open an issue or PR so we can
 keep this guide accurate for the whole Apple Silicon community. 🙌
