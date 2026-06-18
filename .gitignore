@@ -1,0 +1,8 @@
+# local download/temp artifacts
+*.tar.xz
+*.nupkg
+/tmp/
+icu*.dll
+
+# OS noise
+.DS_Store
