@@ -236,6 +236,8 @@ if has displayplacer; then
 
       # Aplicar: monitor selecionado em (0,0), os outros reposicionados
       info "Aplicando layout (monitor selecionado como principal)..."
+      SAVED_FILE="$HOME/.config/warchaos/display-config.txt"
+      mkdir -p "$(dirname "$SAVED_FILE")"
       displayplacer list 2>/dev/null | awk -v target="$SELECTED_MONITOR_ID" '
         BEGIN { cmd="displayplacer"; placed_target=0 }
         /^Persistent screen id:/{id=$4}
@@ -250,19 +252,18 @@ if has displayplacer; then
           if(id==target){
             nx=0; ny=0; placed_target=1
           } else {
-            # colocar à direita do principal, empilhando horizontamente
             if(placed_target){ nx=cur_right; ny=0 } else { nx=ox; ny=oy }
           }
-          # avançar o "cursor" horizontal para o próximo monitor
           if(id==target){ cur_right=res; sub(/x.*/,"",cur_right) }
           gsub(/.*/,tolower(sc),sc)
           gsub(/^[ \t]+/,"",tolower(en))
           cmd=sprintf("%s \"id:%s res:%s hz:%s color_depth:%s enabled:%s scaling:%s origin:(%d,%d) degree:%s\"", cmd, id, res, hz, cd, tolower(en), sc, nx, ny, rot)
         }
         END{ print cmd }
-      ' | bash 2>/dev/null || true
+      ' | tee "$SAVED_FILE" | bash 2>/dev/null || true
 
       ok "Monitor configurado como principal"
+      info "Configuração salva em $SAVED_FILE (re-aplicada automaticamente ao abrir o jogo)"
       info "Para reverter depois: $REPO_ROOT/scripts/set-gaming-monitor.sh -r"
     else
       info "Monitor pulado — o jogo abrirá na main display atual do macOS."
@@ -394,9 +395,16 @@ cat > "$APP_EXEC" <<EOF
 REPO_ROOT="$REPO_ROOT"
 GAME_DIR="${GAME_DIR}"
 source "\$REPO_ROOT/scripts/env.sh"
+
+# Limpar registry keys problemáticas automaticamente (startup)
+# CaptureDisplaysForFullscreen=Y quebra fullscreen no monitor externo
+"\$WINE" reg delete "HKCU\\Software\\Wine\\Mac Driver" /v CaptureDisplaysForFullscreen /f >/dev/null 2>&1 || true
+
+# Re-aplicar monitor escolhido (silencioso, usa config salva do install.sh)
 if [ -x "\$REPO_ROOT/scripts/set-gaming-monitor.sh" ]; then
-  "\$REPO_ROOT/scripts/set-gaming-monitor.sh" 2>/dev/null || true
+  "\$REPO_ROOT/scripts/set-gaming-monitor.sh" --apply 2>/dev/null || true
 fi
+
 if [ ! -d "\$GAME_DIR" ]; then
   osascript -e 'display dialog "Pasta do jogo não encontrada: \$GAME_DIR\\nExecute ./install.sh no terminal." buttons {"OK"} default button 1 with title "WarChaos"'
   exit 1
