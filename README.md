@@ -66,7 +66,7 @@ Para detalhes técnicos completos (causa-raiz de cada erro, o patch do mouse, et
 7. **Patch do mouse** — compila `winemac.drv` com raw input relativo (porta do `winewayland.drv` MR !5869), resolve o lag de ~2s no mouselook FPS
 8. **Monitor 144hz** — detecta e configura monitor externo high-hz como principal
 9. **Download do jogo** — baixa o launcher (`WarChaos Begins.exe`) do CDN oficial (`cdn.warchaos.xyz`) e abre no Wine; o launcher faz o download dos ~29 GB
-10. **Lançador** — `~/Desktop/WarChaos.command` (double-clickable)
+10. **Lançador** — `~/Desktop/WarChaos.app` (double-clickable)
 
 ---
 

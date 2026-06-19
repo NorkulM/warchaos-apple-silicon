@@ -14,7 +14,7 @@
 #   - winemac.drv patcheado (fix do mouse FPS) — compilado e instalado
 #   - Monitor 144hz como principal (opcional, se detectar monitor externo)
 #   - Download + instalação do jogo (launcher baixa ~29 GB do CDN)
-#   - Lançador ~/Desktop/WarChaos.command (double-clickable)
+#   - Lançador ~/Desktop/WarChaos.app (double-clickable)
 # ===========================================================================
 set -euo pipefail
 
@@ -278,7 +278,7 @@ fi
 # --- 9. Download e instalação do jogo ---------------------------------------
 say "Passo 9/9: Instalação do jogo WarChaos"
 DESKTOP="$HOME/Desktop"
-LAUNCHER="$DESKTOP/WarChaos.command"
+LAUNCHER="$DESKTOP/WarChaos.app"
 GAME_DIR="${GAME_DIR:-$HOME/Desktop/Warface/WarChaos}"
 LAUNCHER_EXE="$GAME_DIR/Bin64Release/WarChaos Begins.exe"
 CDN_LAUNCHER_URL="https://cdn.warchaos.xyz/files/Bin64Release/WarChaos%20Begins.exe"
@@ -334,7 +334,7 @@ else
       ok "Jogo instalado em $GAME_DIR"
     else
       info "O launcher pode não ter completado o download."
-      info "Você pode reabrir com: ~/Desktop/WarChaos.command (depois de criar o atalho)"
+      info "Você pode reabrir com: ~/Desktop/WarChaos.app (depois de criar o atalho)"
       info "Ou: source scripts/env.sh && \"\$WINE\" \"$LAUNCHER_EXE\""
     fi
   else
@@ -346,38 +346,72 @@ else
   fi
 fi
 
-# --- Lançador na Área de Trabalho -------------------------------------------
-ask "Criar lançador na Área de Trabalho? [S/n]"
-if [ "${ans:-s}" != "n" ]; then
-  cat > "$LAUNCHER" <<EOF
+# --- Lançador .app na Área de Trabalho --------------------------------------
+say "Criando lançador WarChaos.app na Área de Trabalho"
+DESKTOP="$HOME/Desktop"
+APP="$DESKTOP/WarChaos.app"
+APP_EXEC="$APP/Contents/MacOS/WarChaos"
+APP_ICON="$APP/Contents/Resources/AppIcon.icns"
+WC_ICO_URL="https://warchaos.com.br/warchaos.ico"  # redireciona para wf.warchaos.com.br
+
+# Baixar ícone do WarChaos (favicon do site, multi-resolução até 256x256)
+if [ ! -f "$APP_ICON" ]; then
+  info "Baixando ícone do WarChaos..."
+  TMP_ICO="$(mktemp -d)/warchaos.ico"
+  if curl -fsL --retry 2 "$WC_ICO_URL" -o "$TMP_ICO" 2>/dev/null; then
+    mkdir -p "$(dirname "$APP_ICON")"
+    sips -s format icns "$TMP_ICO" --out "$APP_ICON" >/dev/null 2>&1 || true
+    ok "Ícone baixado"
+  else
+    info "(não foi possível baixar o ícone — o app funcionará sem ele)"
+  fi
+fi
+
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+
+# Info.plist
+cat > "$APP/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>WarChaos</string>
+  <key>CFBundleDisplayName</key><string>WarChaos</string>
+  <key>CFBundleIdentifier</key><string>com.warchaos.launcher</string>
+  <key>CFBundleVersion</key><string>1.0</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleExecutable</key><string>WarChaos</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
+EOF
+
+# Executável (wrapper que source env.sh e lança o jogo)
+cat > "$APP_EXEC" <<EOF
 #!/bin/bash
-# Lançador WarChaos — criado por install.sh
-# Duplo-clique para jogar.
-
 REPO_ROOT="$REPO_ROOT"
+GAME_DIR="${GAME_DIR}"
 source "\$REPO_ROOT/scripts/env.sh"
-
-# Monitor 144hz como principal (se configurado)
 if [ -x "\$REPO_ROOT/scripts/set-gaming-monitor.sh" ]; then
   "\$REPO_ROOT/scripts/set-gaming-monitor.sh" 2>/dev/null || true
 fi
-
-GAME_DIR="${GAME_DIR}"
 if [ ! -d "\$GAME_DIR" ]; then
-  echo "Pasta do jogo não encontrada: \$GAME_DIR"
-  echo "Execute ./install.sh novamente para baixar o jogo."
-  read -p "Pressione Enter para fechar..."
+  osascript -e 'display dialog "Pasta do jogo não encontrada: \$GAME_DIR\\nExecute ./install.sh no terminal." buttons {"OK"} default button 1 with title "WarChaos"'
   exit 1
 fi
-
 cd "\$GAME_DIR/Bin64Release"
 "\$WINE" "./WarChaos Begins.exe"
 EOF
-  chmod +x "$LAUNCHER"
-  xattr -d com.apple.quarantine "$LAUNCHER" 2>/dev/null || true
-  ok "Lançador criado: $LAUNCHER"
-  info "Duplo-clique para jogar."
-fi
+chmod +x "$APP_EXEC"
+
+# Re-signar + limpar quarantine
+xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
+codesign --force --deep -s - "$APP" 2>/dev/null || true
+touch "$APP"
+ok "WarChaos.app criado em $APP (com ícone)"
+info "Duplo-clique para jogar."
 
 # --- Resumo -----------------------------------------------------------------
 say "Instalação completa"
@@ -399,5 +433,5 @@ else
 fi
 [ -x "$LAUNCHER" ] && printf "  ${G}Lançador${N}            ✓ $LAUNCHER\n"
 echo
-printf "  ${C}Para jogar:${N} duplo-clique em ~/Desktop/WarChaos.command\n"
+printf "  ${C}Para jogar:${N} duplo-clique em ~/Desktop/WarChaos.app\n"
 echo

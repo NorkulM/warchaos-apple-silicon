@@ -96,7 +96,7 @@ Fluxo completo (do zero ao jogo rodando):
 7. Patch do mouse (compila winemac.drv)
 8. Monitor 144hz (opcional)
 9. Download do jogo: baixa `WarChaos Begins.exe` de `https://cdn.warchaos.xyz/files/Bin64Release/WarChaos%20Begins.exe` + paks do launcher, abre no Wine — o launcher faz o download dos ~29 GB do CDN
-10. Lançador `~/Desktop/WarChaos.command`
+10. Lançador `~/Desktop/WarChaos.app`
 
 O launcher (`WarChaos Begins.exe`) é um bootstrap Qt 6 que baixa os arquivos do jogo do CDN (`cdn.warchaos.xyz/files/`) usando dois manifests:
 - `https://cdn.warchaos.xyz/manifest/manifest-launcher.xml` — arquivos do launcher (paks)
@@ -301,7 +301,7 @@ warchaos-apple-silicon/
 | `~/WarChaos-wine/` | Wine prefix |
 | `~/Desktop/Warface/WarChaos/` | Instalação do jogo |
 | `/Applications/Wine Staging.app/` | Wine 11.10 Staging |
-| `~/Desktop/WarChaos.command` | Lançador (criado pelo install.sh) |
+| `~/Desktop/WarChaos.app` | Lançador (criado pelo install.sh) |
 
 ---
 
