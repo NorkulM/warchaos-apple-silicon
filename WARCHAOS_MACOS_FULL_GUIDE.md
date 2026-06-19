@@ -104,7 +104,7 @@ O launcher (`WarChaos Begins.exe`) é um bootstrap Qt 6 que baixa os arquivos do
 
 ### Setup não-interativo (legado)
 ```bash
-./setup.sh                              # Rosetta + Wine + prefix + ICU + registry
+./install.sh                             # Installer interativo (Rosetta + Wine + tudo)
 ./scripts/build-wine-mac-rawinput.sh    # compila e instala o patch do mouse
 ./scripts/set-gaming-monitor.sh         # (opcional) monitor 144hz como principal
 ```
@@ -279,7 +279,7 @@ warchaos-apple-silicon/
 ├── README.md                          # Guia rápido
 ├── WARCHAOS_MACOS_FULL_GUIDE.md       # Este documento
 ├── install.sh                         # Installer interativo (sudo, step-by-step, launcher na Área de Trabalho)
-├── setup.sh                           # Setup não-interativo (legado)
+
 ├── LICENSE                            # MIT
 ├── .gitignore
 ├── patches/

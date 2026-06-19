@@ -22,10 +22,10 @@ export MTL_HUD_ENABLED=0            # set to 1 for an on-screen Metal FPS/perf o
 # --- .NET installer fixes ---------------------------------------------------
 # The WarChaos installer is a self-contained .NET 10 WPF app. Two problems under wine:
 #  1) Globalization: .NET can't find ICU -> "culture is not supported" crash.
-#     Fix: ship a real ICU (see setup.sh) and use app-local ICU mode below.
+#     Fix: ship a real ICU (see install.sh) and use app-local ICU mode below.
 export DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU=72.1.0.3
 #  2) WPF hardware rendering throws COMException 0x88980406 under wine.
-#     Fix: DisableHWAcceleration=1 registry key (set by setup.sh) -> software render.
+#     Fix: DisableHWAcceleration=1 registry key (set by install.sh) -> software render.
 
 # --- Qt 6 launcher fixes ----------------------------------------------------
 # The launcher (WarChaos Begins.exe) is a Qt 6 QML app. Under Wine:
@@ -38,7 +38,7 @@ export QT_ENABLE_HIGHDPI_SCALING=0
 export QSG_RHI_BACKEND=opengl
 export QT_OPENGL=desktop
 
-# --- Wine registry fixes (applied by setup.sh) ------------------------------
+# --- Wine registry fixes (applied by install.sh) ------------------------------
 # HKCU\Software\Wine\Direct3D: OffscreenRenderingMode=backbuffer
 #   (fixes GL_INVALID_FRAMEBUFFER_OPERATION on macOS)
 # HKCU\Software\Wine\Mac Driver: Decorated=Y

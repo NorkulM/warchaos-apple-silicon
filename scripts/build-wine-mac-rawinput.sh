@@ -25,7 +25,7 @@
 #
 # Opt-in: after installing, enable the new behavior with the registry key
 #   HKCU\Software\Wine\Mac Driver\RawInput = Y
-# (set by ./setup.sh). Without it the driver behaves exactly as upstream.
+# (set by ./install.sh). Without it the driver behaves exactly as upstream.
 #
 # Requirements: Xcode CLT, Homebrew, `brew install mingw-w64` (for the PE
 # stub), ~3 GB free disk, ~20-40 min on an M4 (configure + one driver).
@@ -48,7 +48,7 @@ die()  { printf "\n\033[1;31mError: %s\033[0m\n" "$*" >&2; exit 1; }
 # --- 0. Preflight -----------------------------------------------------------
 say "Step 0/5: Preflight"
 [ "$(uname -m)" = "arm64" ] || die "This script is for Apple Silicon (arm64)."
-[ -x "$WINE_BIN" ] || die "Wine not found at $WINE_BIN. Run ./setup.sh first."
+[ -x "$WINE_BIN" ] || die "Wine not found at $WINE_BIN. Run ./install.sh first."
 command -v brew    >/dev/null || die "Homebrew not found (https://brew.sh)."
 command -v x86_64-w64-mingw32-gcc >/dev/null || {
   say "Installing mingw-w64 (needed to build Wine PE DLL stubs)..."
