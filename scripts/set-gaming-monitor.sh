@@ -22,6 +22,16 @@ if [ "$cmd" = "--apply" ]; then
     exit 0  # nada salvo, pular silenciosamente
   fi
   command -v displayplacer >/dev/null || exit 0
+  # Fallback: se o monitor alvo não estiver plugado, não aplicar a config
+  # (deixa o macOS no estado natural — ex: retina vira main sozinho).
+  # O monitor alvo é o que está em origin:(0,0) na config salva.
+  TARGET_ID=$(grep -oE 'id:[A-F0-9-]+ res:[0-9]+x[0-9]+ [^"]*origin:\(0,0\)' "$SAVED_FILE" \
+              | head -1 | grep -oE 'id:[A-F0-9-]+' | sed 's/id://')
+  if [ -n "$TARGET_ID" ]; then
+    if ! displayplacer list 2>/dev/null | grep -q "Persistent screen id: $TARGET_ID"; then
+      exit 0  # monitor alvo ausente — fallback: não mexer, macOS cuida
+    fi
+  fi
   bash -c "$(cat "$SAVED_FILE")" 2>/dev/null || true
   exit 0
 fi
