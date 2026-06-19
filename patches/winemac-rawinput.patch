@@ -1,0 +1,103 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: WarChaos Apple Silicon contributors
+Date: Thu, 18 Jun 2026 00:00:00 +0000
+Subject: [PATCH] winemac.drv: Add relative mouse (raw input) mode for FPS
+ pointer grabs
+
+This ports the relative-pointer behavior from winewayland.drv (GitLab MR
+!5869) to the macOS driver, fixing the ~2s mouselook latency that makes
+FPS games unplayable under winemac.drv (e.g. WarChaos/CryEngine).
+
+Root cause
+----------
+WineApplicationController -handleMouseMove: in cocoa_app.m only emits
+MOUSE_MOVED_RELATIVE events when the cursor is "pinned" against the
+clip/desktop boundary (the computedPoint-one-step-ahead heuristic).
+In the interior of its range it emits MOUSE_MOVED_ABSOLUTE using
+CGEventGetLocation. An FPS that calls ClipCursor + ShowCursor(FALSE) +
+RegisterRawInputDevices keeps the cursor in the interior almost all the
+time, so registered raw input devices never receive usable relative
+deltas in WM_INPUT -> fast flicks are dropped / lagged.
+
+This also explains why UseConfinementCursorClipping=N (the CGEventTap
+clip handler) did not help: the event tap rewrites CGEventGetLocation to
+the pinned synthesized location, so computedPoint stays in-bounds and
+the heuristic still forces absolute.
+
+The fix
+-------
+When the new opt-in registry key
+    HKCU\Software\Wine\Mac Driver\RawInput = Y
+is set, and the client has hidden the cursor and is clipping it (the
+canonical FPS pointer-grab condition, matching winewayland.drv's
+!is_visible && constraint_hwnd check), always take the relative branch
+and feed the true per-event CGEvent deltas (kCGMouseEventDeltaX/Y, exposed
+as NSEvent -deltaX/-deltaY). The existing macdrv_mouse_moved() handler
+already forwards MOUSE_MOVED_RELATIVE as MOUSEEVENTF_MOVE (no
+MOUSEEVENTF_ABSOLUTE) via NtUserSendHardwareInput, and win32u synthesizes
+WM_INPUT for registered raw input devices (per the merged Bernon
+patchset, 2019). No changes are needed in mouse.c.
+
+No new RID infrastructure is created; this only makes the existing
+plumbing actually feed relative motion during a pointer grab.
+
+Signed-off-by: WarChaos Apple Silicon contributors
+---
+ 3 files changed, 16 insertions(+)
+
+diff --git a/dlls/winemac.drv/cocoa_app.m b/dlls/winemac.drv/cocoa_app.m
+index 2a9dab2..5967f7c 100644
+--- a/dlls/winemac.drv/cocoa_app.m
++++ b/dlls/winemac.drv/cocoa_app.m
+@@ -1375,6 +1375,17 @@ static NSString* WineLocalizedString(unsigned int stringID)
+                 absolute = TRUE;
+                 forceNextMouseMoveAbsolute = FALSE;
+             }
++            else if (use_raw_input && clientWantsCursorHidden && self.clippingCursor)
++            {
++                /* FPS pointer grab: always feed relative motion from the CGEvent
++                 * deltas (kCGMouseEventDeltaX/Y, i.e. NSEvent -deltaX/-deltaY) so
++                 * raw input devices registered via RegisterRawInputDevices get
++                 * proper WM_INPUT messages. Mirrors winewayland.drv relative
++                 * pointer behavior (GitLab MR !5869). This avoids the mouselook
++                 * latency caused by the pinned-cursor heuristic below, which only
++                 * emits relative events at clip/desktop boundaries. */
++                absolute = FALSE;
++            }
+             else
+             {
+                 // Send absolute move events if the cursor is in the interior of
+diff --git a/dlls/winemac.drv/macdrv_cocoa.h b/dlls/winemac.drv/macdrv_cocoa.h
+index 9a91edb..742dc5e 100644
+--- a/dlls/winemac.drv/macdrv_cocoa.h
++++ b/dlls/winemac.drv/macdrv_cocoa.h
+@@ -124,6 +124,7 @@ extern bool allow_immovable_windows;
+ extern bool use_confinement_cursor_clipping;
+ extern bool cursor_clipping_locks_windows;
+ extern bool use_precise_scrolling;
++extern bool use_raw_input;
+ extern int gl_surface_mode;
+ extern CFDictionaryRef localized_strings;
+ extern bool retina_enabled;  /* Whether Retina mode is enabled via registry setting. */
+diff --git a/dlls/winemac.drv/macdrv_main.c b/dlls/winemac.drv/macdrv_main.c
+index 9616824..14d57f7 100644
+--- a/dlls/winemac.drv/macdrv_main.c
++++ b/dlls/winemac.drv/macdrv_main.c
+@@ -53,6 +53,7 @@ BOOL allow_software_rendering = FALSE;
+ bool allow_immovable_windows = true;
+ bool use_confinement_cursor_clipping = true;
+ bool cursor_clipping_locks_windows = true;
++bool use_raw_input = false;
+ bool use_precise_scrolling = true;
+ int gl_surface_mode = GL_SURFACE_IN_FRONT_OPAQUE;
+ bool retina_enabled = false;
+@@ -354,6 +355,9 @@ static void setup_options(void)
+     if (!get_config_key(hkey, appkey, "CursorClippingLocksWindows", buffer, sizeof(buffer)))
+         cursor_clipping_locks_windows = IS_OPTION_TRUE(buffer[0]);
+ 
++    if (!get_config_key(hkey, appkey, "RawInput", buffer, sizeof(buffer)))
++        use_raw_input = IS_OPTION_TRUE(buffer[0]);
++
+     if (!get_config_key(hkey, appkey, "UsePreciseScrolling", buffer, sizeof(buffer)))
+         use_precise_scrolling = IS_OPTION_TRUE(buffer[0]);
+ 

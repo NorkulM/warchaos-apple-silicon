@@ -112,6 +112,15 @@ echo "  Direct3D backbuffer: done"
   /v Decorated /t REG_SZ /d Y /f >/dev/null 2>&1 || true
 echo "  Mac Driver decorated: done"
 
+# Enable relative mouse / raw input for FPS pointer grabs (winemac.drv).
+# Harmless no-op on an unpatched Wine (the key is simply ignored). Takes effect
+# only after you build & install the patched driver: scripts/build-wine-mac-rawinput.sh
+# Condition: cursor hidden + ClipCursor active (the FPS grab). See
+# WARCHAOS_MACOS_FULL_GUIDE.md > The Mouse Problem.
+"$WINE" reg add "HKCU\\Software\\Wine\\Mac Driver" \
+  /v RawInput /t REG_SZ /d Y /f >/dev/null 2>&1 || true
+echo "  Mac Driver RawInput: done (needs patched winemac.drv to take effect)"
+
 cat <<EOF
 
 \033[1;32mSetup complete.\033[0m

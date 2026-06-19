@@ -1,116 +1,124 @@
-# WarChaos on Apple Silicon — Complete Technical Guide
+# WarChaos no Apple Silicon — Guia Técnico Completo
 
-**Date:** 2026-06-18  
-**Tested on:** MacBook Air M4, macOS 27 Golden Gate Developer Beta  
-**Status:** 🟡 **PLAYABLE** — Launcher 100% functional, game reaches lobby, mouse input needs raw input delta support
-
----
-
-## Table of Contents
-1. [Overview](#overview)
-2. [What Works](#what-works)
-3. [What Doesn't Work Yet](#what-doesnt-work-yet)
-4. [Setup Guide](#setup-guide)
-5. [Technical Deep Dive](#technical-deep-dive)
-6. [All Errors Encountered & Fixes](#all-errors-encountered--fixes)
-7. [The Mouse Problem](#the-mouse-problem)
-8. [Repository Files](#repository-files)
-9. [Next Steps for the Community](#next-steps-for-the-community)
+**Data:** 2026-06-18  
+**Testado em:** MacBook Air M4, macOS 27 Golden Gate Developer Beta  
+**Status:** 🟢 **JOGÁVEL** — Launcher 100% funcional, jogo chega ao lobby, mouselook FPS funcionando com patch de raw input.
 
 ---
 
-## Overview
+## Sumário
+1. [Visão Geral](#visão-geral)
+2. [O que funciona](#o-que-funciona)
+3. [O que não funciona](#o-que-não-funciona)
+4. [Instalação](#instalação)
+5. [Mergulho Técnico](#mergulho-técnico)
+6. [Erros Encontrados e Correções](#erros-encontrados-e-correções)
+7. [O Problema do Mouse](#o-problema-do-mouse)
+8. [Monitor 144hz](#monitor-144hz)
+9. [Arquivos do Repositório](#arquivos-do-repositório)
+10. [Próximos Passos](#próximos-passos)
 
-WarChaos is a CryEngine-based online FPS (Warface private server). There is no native macOS build. This guide documents how to run it on Apple Silicon Macs using Wine + Rosetta 2.
+---
 
-**Architecture:**
+## Visão Geral
+
+WarChaos é um FPS online baseado em CryEngine (servidor privado de Warface). Não há build nativa para macOS. Este guia documenta como rodar em Apple Silicon via Wine + Rosetta 2.
+
+**Arquitetura:**
 ```
-WarChaos Begins.exe (Qt 6 QML launcher)
+WarChaos Begins.exe (launcher Qt 6 QML)
   → login (Discord OAuth2)
-  → launches game client (CryEngine)
-    → DirectX 11 → D3DMetal (or DXVK → MoltenVK → Metal)
+  → game client (CryEngine)
+    → DirectX 11 → D3DMetal (ou DXVK → MoltenVK → Metal)
     → Rosetta 2 (x86-64 → ARM)
     → macOS 27
 ```
 
 ---
 
-## What Works
+## O que funciona
 
-| Component | Status | Details |
-|-----------|--------|---------|
-| Rosetta 2 | ✅ | x86-64 binaries run on M4 |
-| Wine 11.10 Staging (Gcenx) | ✅ | Prebuilt, no Homebrew x86 needed |
-| .NET 10 WPF Installer | ✅ | Downloads & installs full 29 GB game |
-| ICU Globalization | ✅ | Custom `icu.dll` forwarder shim |
-| Qt 6 Launcher UI | ✅ | Login, Discord, videos, all QML screens |
-| Anti-cheat (ClientProtection) | ✅ | Does NOT block Wine |
-| Game client launch | ✅ | CryEngine initializes, reaches lobby |
-| Server connectivity | ✅ | `cdn.warchaos.xyz` + `game.warchaos.xyz` respond |
-| In-game lobby | ✅ | Inventory, HUD, weapon customization load |
-| In-game audio | ✅ | Music theme plays (OGG decoder) |
-| Mouse in menus | ✅ | Clicks work perfectly |
-| Mouse in FPS camera | ❌ | See [The Mouse Problem](#the-mouse-problem) |
-
----
-
-## What Doesn't Work Yet
-
-### Mouse FPS Camera (CRITICAL)
-The in-game mouselook has ~2 second delay on fast movements. The root cause is that `winemac.drv` does not implement **relative mouse input** (Raw Input Device / RID). It only delivers absolute cursor positions. FPS games need `WM_INPUT` messages with relative deltas.
-
-**What we tried:**
-- `MouseWarpOverride=force` — worse
-- `DisableExclusiveMode=Y` — no change
-- `UseConfinementCursorClipping=N` — no change
-- `EnableRawInput=Y` + `UseRawInput=Y` — no change
-- macOS Input Monitoring permission — minor improvement, not enough
-- `i_mouse=3` / `i_mouse_raw=1` in CryEngine autoexec — no change
-
-**What would fix it:**
-- A Wine build with RID support in `winemac.drv` (CrossOver has this)
-- Or: a CGEventTap shim that captures `kCGMouseEventDeltaX/Y` and injects `WM_INPUT`
-- Or: the WarChaos team adding a `+i_mouse_accel 0` / raw input bypass in the engine
-
-### Other minor issues
-- **Multi-monitor:** macOS 27 beta has window management bugs with 3 monitors
-- **Fullscreen:** Captures all monitors (Windows-style), use windowed mode
-- **Steam API:** `SteamAPI_Init() failed` (normal, no Steam runtime)
-- **Discord SDK:** `Failed to create Discord SDK. Error code: 4` (non-critical)
-- **Battle Pass:** Some endpoints timeout (server-side)
+| Componente | Status | Detalhe |
+|------------|--------|---------|
+| Rosetta 2 | ✅ | binários x86-64 rodam no M4 |
+| Wine 11.10 Staging (Gcenx) | ✅ | prebuilt, não precisa de Homebrew x86 |
+| Installer .NET 10 WPF | ✅ | baixa e instala os 29 GB do jogo |
+| ICU Globalization | ✅ | shim forwarder `icu.dll` customizado |
+| Launcher Qt 6 | ✅ | login, Discord, vídeos, todas as telas QML |
+| Anti-cheat (ClientProtection) | ✅ | não bloqueia Wine |
+| Game client | ✅ | CryEngine inicializa, chega ao lobby, partidas |
+| Conectividade servidor | ✅ | `cdn.warchaos.xyz` + `game.warchaos.xyz` respondem |
+| Lobby | ✅ | inventário, HUD, customização de armas carregam |
+| Áudio | ✅ | música tema toca (decoder OGG) |
+| Mouse nos menus | ✅ | cliques funcionam perfeitamente |
+| Mouse no FPS (mouselook) | ✅ | com o patch de raw input (ver [O Problema do Mouse](#o-problema-do-mouse)) |
 
 ---
 
-## Setup Guide
+## O que não funciona
 
-### Prerequisites
-- Apple Silicon Mac (M1/M2/M3/M4)
-- macOS 14+ (tested on 27 beta)
-- ~65 GB free disk
-- Admin account
+### Mouse FPS — residual
+O patch de raw input resolveu o problema principal (~2s de lag em flicks). Falhas residuais ocorrem **só durante quedas de FPS** (frame spikes) — o game loop do CryEngine não processa `WM_INPUT` a tempo e deltas se acumulam/perdem. É gargalo de render, não do patch.
 
-### Quick Start
+### Issues menores
+- **Multi-monitor:** macOS 27 beta tem bugs de window management com 3 monitores
+- **Fullscreen:** captura todos os monitores (estilo Windows) — usar modo janela
+- **Steam API:** `SteamAPI_Init() failed` (normal, sem runtime Steam)
+- **Discord SDK:** `Failed to create Discord SDK. Error code: 4` (não-crítico)
+- **Crash ao trocar de mapa:** timer do CryEngine estoura UINT32 (`2026-06-20T4294967269:26:35`) — bug do engine, não do Wine
+
+---
+
+## Instalação
+
+### Pré-requisitos
+- Mac Apple Silicon (M1/M2/M3/M4)
+- macOS 14+ (testado no 27 beta)
+- ~65 GB livres em disco
+- Conta admin
+
+### Installer interativo (recomendado)
 ```bash
-git clone <this-repo>
+git clone <este-repo>
 cd warchaos-apple-silicon
-./setup.sh
+./install.sh
 ```
 
-`setup.sh` does:
-1. Installs Rosetta 2
-2. Downloads Wine 11.10 Staging (Gcenx prebuilt, ~181 MB)
-3. Creates a dedicated Wine prefix at `~/WarChaos-wine`
-4. Downloads Microsoft ICU 72 and builds the `icu.dll` forwarder shim
-5. Applies all required registry fixes
+O `install.sh` é interativo: pede sudo, verifica cada passo, pergunta antes de instalar, baixa o launcher do WarChaos do CDN oficial e abre no Wine para baixar os ~29 GB do jogo, e no final cria um lançador executável na Área de Trabalho.
 
-### Running the Game
+Fluxo completo (do zero ao jogo rodando):
+1. Rosetta 2
+2. Homebrew + deps
+3. Wine 11.10 Staging (Gcenx)
+4. Wine prefix
+5. ICU + shim icu.dll
+6. Registry fixes
+7. Patch do mouse (compila winemac.drv)
+8. Monitor 144hz (opcional)
+9. Download do jogo: baixa `WarChaos Begins.exe` de `https://cdn.warchaos.xyz/files/Bin64Release/WarChaos%20Begins.exe` + paks do launcher, abre no Wine — o launcher faz o download dos ~29 GB do CDN
+10. Lançador `~/Desktop/WarChaos.command`
+
+O launcher (`WarChaos Begins.exe`) é um bootstrap Qt 6 que baixa os arquivos do jogo do CDN (`cdn.warchaos.xyz/files/`) usando dois manifests:
+- `https://cdn.warchaos.xyz/manifest/manifest-launcher.xml` — arquivos do launcher (paks)
+- `https://cdn.warchaos.xyz/manifest/manifest.xml` — arquivos do jogo (29 GB)
+
+### Setup não-interativo (legado)
+```bash
+./setup.sh                              # Rosetta + Wine + prefix + ICU + registry
+./scripts/build-wine-mac-rawinput.sh    # compila e instala o patch do mouse
+./scripts/set-gaming-monitor.sh         # (opcional) monitor 144hz como principal
+```
+
+### Rodar o jogo
 ```bash
 source scripts/env.sh
 cd ~/Desktop/Warface/WarChaos
 "$WINE" "Bin64Release/WarChaos Begins.exe"
 ```
 
-### Environment Variables (scripts/env.sh)
+Ou pelo lançador na Área de Trabalho (criado pelo `install.sh`).
+
+### Variáveis de ambiente (scripts/env.sh)
 ```bash
 export WINE="/Applications/Wine Staging.app/Contents/Resources/wine/bin/wine"
 export WINEPREFIX="$HOME/WarChaos-wine"
@@ -118,208 +126,203 @@ export WINEESYNC=1
 export ROSETTA_ADVERTISE_AVX=1
 export WINEDEBUG=-all
 
-# Qt 6 launcher fixes
-export QT_QPA_PLATFORM="windows:darkmode=0"     # Avoids UISettings COM crash
-export QT_AUTO_SCREEN_SCALE_FACTOR=0             # Avoids DPI awareness failure
+# Launcher Qt 6
+export QT_QPA_PLATFORM="windows:darkmode=0"     # evita crash COM/UISettings
+export QT_AUTO_SCREEN_SCALE_FACTOR=0             # evita falha de DPI awareness
 export QT_ENABLE_HIGHDPI_SCALING=0
-export QSG_RHI_BACKEND=opengl                    # Software & D3D11 backends fail under Wine
+export QSG_RHI_BACKEND=opengl                    # software & D3D11 backends falham no Wine
 export QT_OPENGL=desktop
 
-# .NET installer fixes
+# Installer .NET
 export DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU=72.1.0.3
 ```
 
-### Registry Keys Applied
+### Registry keys
 ```
 HKCU\Software\Wine\Direct3D: OffscreenRenderingMode = backbuffer
 HKCU\Software\Wine\Mac Driver: Decorated = Y
+HKCU\Software\Wine\Mac Driver: RawInput = Y          # ativa mouse relativo (precisa do patch)
 HKCU\Software\Microsoft\Avalon.Graphics: DisableHWAcceleration = 1
 ```
 
 ---
 
-## Technical Deep Dive
+## Mergulho Técnico
 
-### Why GPTK Wine 7.7 doesn't work
-The official Game Porting Toolkit ships Wine 7.7 (2022). This is too old for Qt 6:
-- Qt 6's `qwindows.dll` platform plugin crashes during COM/UIAutomation init
-- `Windows.UI.ViewManagement.UISettings` activation fails (dark mode detection)
-- Repeated `0x6BA` (RPC_S_SERVER_UNAVAILABLE) exceptions → C++ abort
+### Por que o GPTK Wine 7.7 não funciona
+O Game Porting Toolkit oficial traz Wine 7.7 (2022). Velho demais para Qt 6:
+- `qwindows.dll` crasha na init COM/UIAutomation
+- `Windows.UI.ViewManagement.UISettings` falha (detecção de dark mode)
+- Exceções `0x6BA` (RPC_S_SERVER_UNAVAILABLE) repetidas → C++ abort
 
-### Why Homebrew x86_64 doesn't work on macOS 27
-The Command Line Tools on macOS 27 removed the x86_64 slice of `libxcrun`:
+### Por que Homebrew x86_64 não funciona no macOS 27
+As Command Line Tools do macOS 27 removeram o slice x86_64 do `libxcrun`:
 ```
 xcrun: error: unable to load libxcrun
   (have 'arm64,arm64e', need 'x86_64')
 ```
-This breaks `git` under Rosetta, which breaks Homebrew x86_64 installation.
-**Solution:** Use Gcenx prebuilt Wine (no compilation needed).
+Isso quebra `git` sob Rosetta, quebra a instalação do Homebrew x86_64.
+**Solução:** usar Wine prebuilt do Gcenx (sem compilação).
 
-### Why the launcher was invisible
-The Qt 6 launcher creates a **borderless window** (`WS_EX_LAYERED`). On macOS 27 beta,
-`winemac.drv` doesn't composite borderless windows on screen (they exist in Mission Control
-but not on the desktop).
+### Por que o launcher era invisível
+O launcher Qt 6 cria uma janela **borderless** (`WS_EX_LAYERED`). No macOS 27 beta, `winemac.drv` não compõe janelas borderless na tela (existem no Mission Control mas não no desktop).
 
-**Fix:** `Decorated=Y` forces native macOS window decorations, which winemac presents reliably.
+**Fix:** `Decorated=Y` força decoração nativa macOS, que o winemac apresenta corretamente.
 
-### Why the launcher content was white/empty
-The Qt Quick scenegraph tried multiple render backends:
+### Por que o conteúdo do launcher era branco/vazio
+O Qt Quick scenegraph tentou vários backends:
 1. **Software (backend 3):** `Failed to create RHI`
 2. **D3D11:** `D3D11 smoke test: Failed to create vertex shader`
-3. **OpenGL (backend 2):** ✅ Works — Wine implements OpenGL well
+3. **OpenGL (backend 2):** ✅ funciona — Wine implementa OpenGL bem
 
 **Fix:** `QSG_RHI_BACKEND=opengl`
 
-### Why the game had GL_INVALID_FRAMEBUFFER_OPERATION
-Wine's default offscreen rendering mode uses FBOs that fail on macOS:
+### Por que o jogo tinha GL_INVALID_FRAMEBUFFER_OPERATION
+O modo offscreen default do Wine usa FBOs que falham no macOS:
 ```
 err:d3d:wined3d_check_gl_call >>>>>>> GL_INVALID_FRAMEBUFFER_OPERATION (0x506) from glClear
 ```
-
 **Fix:** `OffscreenRenderingMode=backbuffer`
 
-### The ICU Forwarder Shim
-The game ships `Bin64Release/icuuc.dll` — a **forwarder** that redirects all ICU calls to
-a combined `icu.dll` (which exists on real Windows but not in Wine).
+### O shim forwarder de ICU
+O jogo traz `Bin64Release/icuuc.dll` — um **forwarder** que redireciona chamadas ICU para um `icu.dll` combinado (existe no Windows real mas não no Wine).
 
-We built a custom `icu.dll` that re-exports all 542 function names (unversioned) and
-forwards them to the versioned exports in Microsoft's ICU 72 (`icuuc72.dll`/`icuin72.dll`).
+Construímos um `icu.dll` customizado que re-exporta os 542 nomes de função (sem versão) e encaminha para os exports versionados do ICU 72 da Microsoft (`icuuc72.dll`/`icuin72.dll`).
 
-Built with: `lld-link /DLL /NOENTRY /MACHINE:X64 /DEF:icu.def stub.obj /OUT:icu.dll`
+Build: `lld-link /DLL /NOENTRY /MACHINE:X64 /DEF:icu.def stub.obj /OUT:icu.dll`
 
 ---
 
-## All Errors Encountered & Fixes
+## Erros Encontrados e Correções
 
-| # | Error | Cause | Fix |
-|---|-------|-------|-----|
-| 1 | `arch: Bad CPU type in executable` | Rosetta 2 not installed | `softwareupdate --install-rosetta` |
-| 2 | `xcrun: missing compatible architecture (have 'arm64,arm64e', need 'x86_64')` | macOS 27 CLT no x86_64 slice | Use Gcenx prebuilt Wine (skip Homebrew x86) |
-| 3 | `CultureNotFoundException: 'en' is an invalid culture identifier` | .NET can't find ICU | Install real ICU + `DOTNET_SYSTEM_GLOBALIZATION_APPLOCALICU` |
-| 4 | `Cannot find non-neutral culture related to 'en-us'` | Used invariant mode; WPF binding needs real cultures | Use real ICU (not invariant) |
-| 5 | `COMException (0x88980406)` in WPF | WPF hardware rendering fails under Wine | `DisableHWAcceleration=1` |
-| 6 | `find_forwarded_export module not found for forward 'icu.ucnv_open'` | Game's `icuuc.dll` forwards to missing `icu.dll` | Build `icu.dll` forwarder shim |
-| 7 | `Wine C++ Runtime Library` abort after `qwindows.dll` | Qt 6 dark mode detection crashes (UISettings COM) | `QT_QPA_PLATFORM=windows:darkmode=0` |
-| 8 | `SetProcessDpiAwarenessContext() failed: Acesso negado` | Qt DPI awareness fails under Wine | `QT_AUTO_SCREEN_SCALE_FACTOR=0` |
-| 9 | `Failed to create RHI (backend 3)` | Qt software render backend fails | `QSG_RHI_BACKEND=opengl` |
-| 10 | `D3D11 smoke test: Failed to create vertex shader` | Qt D3D11 backend fails under Wine | `QSG_RHI_BACKEND=opengl` |
-| 11 | `GL_INVALID_FRAMEBUFFER_OPERATION (0x506) from glClear` | Wine FBO offscreen rendering broken on macOS | `OffscreenRenderingMode=backbuffer` |
-| 12 | Window exists but invisible (Mission Control shows it) | Borderless windows not composited on macOS 27 beta | `Decorated=Y` |
-| 13 | Game client doesn't launch via `open`/app bundle | App bundle environment restricts child process | Launch directly from terminal |
-| 14 | Mouse FPS camera unresponsive (2s delay on flicks) | winemac.drv doesn't implement relative mouse input (RID) | **UNRESOLVED** — see below |
-
----
-
-## The Mouse Problem
-
-### Symptom
-In FPS mouselook: slow movements work, fast movements (flicks) are ignored. The cursor
-feels like it has ~2 seconds of latency before responding to direction changes.
-
-### Root Cause
-`winemac.drv` only delivers `WM_MOUSEMOVE` with **absolute cursor position**. FPS games
-call `RegisterRawInputDevices` expecting `WM_INPUT` messages with **relative deltas**
-(`RAWMOUSE.lLastX`/`lLastY`). The Wine `user32` has all the RID API stubs, but the macOS
-backend never generates the actual delta events.
-
-On real Windows, the mouse driver reports raw deltas via HID. On macOS, the Core Graphics
-events DO contain delta fields (`kCGMouseEventDeltaX`/`kCGMouseEventDeltaY`), but
-`winemac.drv` ignores them and only reads `CGEventGetLocation`.
-
-### What We Tried
-| Attempt | Result |
-|---------|--------|
-| `MouseWarpOverride=force` | Worse — warp suppression eats events |
-| `DisableExclusiveMode=Y` | No change |
-| `UseConfinementCursorClipping=N` | No change |
-| `EnableRawInput=Y` + `UseRawInput=Y` | No change (user32 has stubs but driver doesn't feed them) |
-| macOS Input Monitoring permission | Minor improvement, not enough |
-| `i_mouse=3` / `i_mouse_raw=1` in CryEngine autoexec | No change (engine calls RID, driver still doesn't deliver) |
-| `GrabFullscreen=Y` | No change |
-
-### Possible Solutions (for the community)
-
-**Option A: CrossOver (paid, trial available)**
-CrossOver has a proprietary `winemac.drv` with full RID support. FPS games work natively.
-This is what most Mac gamers use for competitive FPS titles.
-
-**Option B: CGEventTap Shim**
-A `DYLD_INSERT_LIBRARIES` dylib that:
-1. Creates a CGEventTap capturing `kCGEventMouseMoved`
-2. Reads `kCGMouseEventDeltaX`/`kCGMouseEventDeltaY`
-3. Posts `WM_INPUT` messages to the focused Wine window
-Requires Accessibility permission. The challenge is that the shim runs in the host process
-(arm64) while Wine runs x86_64 under Rosetta — they can't share memory directly.
-
-**Option C: Patch winemac.drv**
-Modify `dlls/winemac.drv/mouse.c` in Wine source to:
-1. Read `CGEventGetIntegerValueField(event, kCGMouseEventDeltaX/Y)` in the mouse moved handler
-2. Accumulate deltas
-3. Generate `WM_INPUT` messages via `NtUserSendHardwareInput` with `RIM_TYPEMOUSE`
-Requires compiling Wine from source (~2 hours on M4).
-
-**Option D: WarChaos engine patch**
-If the WarChaos team can add a cvar like `i_mouse_raw_input 0` that falls back to
-`GetCursorPos`-based mouselook (bypassing `RegisterRawInputDevices`), the game would
-work on all Wine versions without RID support.
+| # | Erro | Causa | Fix |
+|---|------|-------|-----|
+| 1 | `arch: Bad CPU type in executable` | Rosetta 2 não instalado | `softwareupdate --install-rosetta` |
+| 2 | `xcrun: missing compatible architecture` | macOS 27 CLT sem slice x86_64 | usar Wine prebuilt Gcenx |
+| 3 | `CultureNotFoundException: 'en'` | .NET não acha ICU | instalar ICU real + `APPLOCALICU` |
+| 4 | `Cannot find non-neutral culture 'en-us'` | modo invariant; WPF precisa de culturas reais | usar ICU real |
+| 5 | `COMException (0x88980406)` no WPF | HW rendering do WPF falha no Wine | `DisableHWAcceleration=1` |
+| 6 | `find_forwarded_export ... icu.ucnv_open` | `icuuc.dll` do jogo encaminha para `icu.dll` inexistente | build do shim `icu.dll` |
+| 7 | abort C++ após `qwindows.dll` | Qt 6 dark mode crasha (UISettings COM) | `QT_QPA_PLATFORM=windows:darkmode=0` |
+| 8 | `SetProcessDpiAwarenessContext() failed` | DPI awareness do Qt falha no Wine | `QT_AUTO_SCREEN_SCALE_FACTOR=0` |
+| 9 | `Failed to create RHI (backend 3)` | backend software do Qt falha | `QSG_RHI_BACKEND=opengl` |
+| 10 | `D3D11 smoke test: Failed to create vertex shader` | backend D3D11 do Qt falha no Wine | `QSG_RHI_BACKEND=opengl` |
+| 11 | `GL_INVALID_FRAMEBUFFER_OPERATION (0x506)` | FBO offscreen do Wine quebrado no macOS | `OffscreenRenderingMode=backbuffer` |
+| 12 | janela existe mas invisível | borderless não é composto no macOS 27 beta | `Decorated=Y` |
+| 13 | game client não abre via `open`/app bundle | app bundle restringe env do child process | lançar direto do terminal |
+| 14 | mouse FPS com ~2s de lag em flicks | heurística `handleMouseMove:` só emite relativo na borda do clip | **patch winemac-rawinput** (ver abaixo) |
+| 15 | `configure: C compiler cannot create executables` (build Wine) | `arch -x86_64` → `xcrun` dlopena `libxcrun` arm64-only | cross-compile nativo: `clang -target x86_64-apple-darwin` |
+| 16 | `bison version is too old` (build Wine) | bison da Apple é 2.x; Wine precisa ≥3.0 | `brew install bison` + PATH |
 
 ---
 
-## Repository Files
+## O Problema do Mouse
+
+### Sintoma
+No mouselook FPS: movimentos lentos funcionavam, flicks rápidos eram ignorados. ~2s de latência antes de responder a mudanças de direção.
+
+### Causa-raiz (confirmada no fonte do Wine)
+O diagnóstico anterior ("winemac.drv só entrega posição absoluta e ignora `kCGMouseEventDeltaX/Y`") era **impreciso**. Lendo o fonte do driver (`dlls/winemac.drv/cocoa_app.m`, `WineApplicationController -handleMouseMove:`):
+
+- O driver **lê** `[NSEvent deltaX]/deltaY` (== `kCGMouseEventDeltaX/Y`)
+- O driver **emite** eventos `MOUSE_MOVED_RELATIVE`
+- `macdrv_mouse_moved()` em `mouse.c` **encaminha** como `MOUSEEVENTF_MOVE` relativo via `NtUserSendHardwareInput`
+- O plumbing RID no `user32`/`win32u` **está completo** (patchset do Bernon, 2019, merged — `NtUserSendHardwareInput` sintetiza `WM_INPUT` para dispositivos raw input registrados)
+
+O bug real é uma **heurística em `handleMouseMove:`**: ela só emite `MOUSE_MOVED_RELATIVE` quando o cursor está "pinned" contra a borda do clip/desktop (computa um ponto um passo à frente na direção do movimento e checa se está fora dos limites). No interior do range, emite `MOUSE_MOVED_ABSOLUTE` via `CGEventGetLocation`. Um FPS que faz `ClipCursor` + `ShowCursor(FALSE)` + `RegisterRawInputDevices` mantém o cursor no interior quase sempre → dispositivos raw input registrados nunca recebem deltas relativos usáveis em `WM_INPUT` → flicks rápidos são descartados/lagados.
+
+Isso também explica por que `UseConfinementCursorClipping=N` (o handler de clip via CGEventTap) não ajudou: o event tap reescreve `CGEventGetLocation` para a posição pinada sintetizada, então o "ponto um passo à frente" continua in-bounds e a heurística ainda força absoluto.
+
+### O Fix
+
+**Não criamos RID novo** — a roda já existe no Wine. Portamos o comportamento de relative-pointer do `winewayland.drv` (GitLab MR !5869, `dlls/winewayland.drv/wayland_pointer.c`) para o `winemac.drv`. O driver wayland é irmão do mac com a mesma arquitetura, e seu path de relative-pointer é exatamente o padrão necessário.
+
+**Patch:** `patches/winemac-rawinput.patch` — 3 arquivos, ~16 linhas:
+- `macdrv_cocoa.h` / `macdrv_main.c`: adiciona registry key opt-in `HKCU\Software\Wine\Mac Driver\RawInput` (mesmo padrão da key `rawinput` do MR do Wayland).
+- `cocoa_app.m` `handleMouseMove:`: quando `RawInput=Y` **e** o client escondeu o cursor **e** está fazendo clip (condição canônica de pointer-grab de FPS, equivalente ao `!is_visible && constraint_hwnd` do winewayland), sempre toma o branch relativo e alimenta os deltas reais do CGEvent. `macdrv_mouse_moved()` + `NtUserSendHardwareInput` + win32u fazem o resto (síntese de `WM_INPUT`). Sem mudança no `mouse.c`.
+
+**Build & install:** `scripts/build-wine-mac-rawinput.sh`:
+- shallow-clone do Wine no tag matching o Gcenx instalado
+- aplica o patch
+- configura e compila só `dlls/winemac.drv` em x86_64 via cross-compile nativo (`clang -target x86_64-apple-darwin`, contornando o bug do `xcrun`/libxcrun do macOS 27)
+- backup do `winemac.so` original, troca pelo patcheado, re-assina o bundle ad-hoc
+
+### Falhas residuais
+O mouse ainda falha **durante quedas de FPS** (frame spikes do CryEngine). Causa: o game loop não processa `WM_INPUT` a tempo → deltas se acumulam ou são descartados. É gargalo de render, não do patch. Investigar performance (D3DMetal vs DXVK, shaders, v-sync) para resolver.
+
+### Outras soluções (para a comunidade)
+
+**CrossOver (pago, trial disponível):** tem `winemac.drv` proprietário com RID completo. FPS rodam nativo. Caminho mais rápido se não quiser compilar Wine.
+
+**Upstream do patch:** o patch é estruturado como patch Wine upstream-style (opt-in via registry, segue o precedente do winewayland.drv). Submeter ao wine-devel faria builds futuras do Gcenx já trazerem e removeria o passo de build local.
+
+---
+
+## Monitor 144hz
+
+O Wine/jogo abre na "main display" do macOS (a com a menu bar = origin (0,0)). Para forçar o monitor 144hz externo como principal:
+
+```bash
+brew install displayplacer
+./scripts/set-gaming-monitor.sh         # 144hz vira main (0,0)
+./scripts/set-gaming-monitor.sh -r      # restaura layout anterior
+```
+
+O `install.sh` detecta monitores e pergunta qual é o 144hz automaticamente.
+
+---
+
+## Arquivos do Repositório
 
 ```
 warchaos-apple-silicon/
-├── README.md                          # Quick start guide
-├── WARCHAOS_MACOS_FULL_GUIDE.md       # This document
-├── setup.sh                           # One-shot automated setup
+├── README.md                          # Guia rápido
+├── WARCHAOS_MACOS_FULL_GUIDE.md       # Este documento
+├── install.sh                         # Installer interativo (sudo, step-by-step, launcher na Área de Trabalho)
+├── setup.sh                           # Setup não-interativo (legado)
 ├── LICENSE                            # MIT
 ├── .gitignore
+├── patches/
+│   └── winemac-rawinput.patch         # Patch Wine: mouse relativo (raw input) para winemac.drv
 ├── artifacts/
-│   ├── icu.def                        # ICU forwarder definitions (542 exports)
-│   └── icu.dll                        # Prebuilt ICU forwarder shim
+│   ├── icu.def                        # Definições do forwarder ICU (542 exports)
+│   └── icu.dll                        # Shim forwarder ICU prebuilt
 └── scripts/
-    ├── env.sh                         # Environment variables (source before running)
-    ├── launch.sh                      # Launch the game
-    └── build-icu-shim.sh              # Rebuild the ICU forwarder DLL
+    ├── env.sh                         # Variáveis de ambiente (source antes de rodar)
+    ├── launch.sh                      # Lança o jogo
+    ├── build-icu-shim.sh              # Reconstrói o shim ICU
+    ├── build-wine-mac-rawinput.sh     # Compila winemac.drv patcheado e instala no Wine Staging.app
+    └── set-gaming-monitor.sh          # Configura monitor 144hz como principal
 ```
 
-### Key Paths
-| Path | Purpose |
-|------|---------|
+### Paths importantes
+| Path | Propósito |
+|------|-----------|
 | `~/WarChaos-wine/` | Wine prefix |
-| `~/Desktop/Warface/WarChaos/` | Game installation |
-| `~/Desktop/WarChaosLauncher.app/` | Standalone launcher (for TCC permissions) |
+| `~/Desktop/Warface/WarChaos/` | Instalação do jogo |
 | `/Applications/Wine Staging.app/` | Wine 11.10 Staging |
-| `/tmp/wc-*.log` | Debug logs from various sessions |
+| `~/Desktop/WarChaos.command` | Lançador (criado pelo install.sh) |
 
 ---
 
-## Next Steps for the Community
+## Próximos Passos
 
-1. **Mouse fix is the #1 priority.** Without it, the game is not competitively playable.
-   Options ranked by feasibility:
-   - CrossOver trial (5 minutes, guaranteed to work)
-   - CGEventTap shim (a few hours of dev)
-   - Patch winemac.drv (compile Wine, ~2 hours)
-   - WarChaos engine patch (ask the devs)
+1. **Performance.** As falhas residuais de mouse correlacionam com quedas de FPS. Investigar: D3DMetal vs DXVK/MoltenVK, cache de shaders, v-sync. Usar `MTL_HUD_ENABLED=1` para medir.
 
-2. **Test on macOS 26 (stable).** macOS 27 beta has window management bugs that may not
-   exist on stable releases. The `Decorated=Y` workaround may not be needed.
+2. **Testar no macOS 26 (stable).** O macOS 27 beta tem bugs de window management que podem não existir no stable. O workaround `Decorated=Y` pode ser dispensável.
 
-3. **Performance benchmarking.** Once mouse works, test FPS with `MTL_HUD_ENABLED=1`.
-   CryEngine → D3DMetal performance on M4 should be good but needs measurement.
+3. **Anti-cheat.** O `ClientProtection` não bloqueou, mas confirmar com a staff do WarChaos que jogar via Wine é permitido.
 
-4. **Anti-cheat verification.** The `ClientProtection` system did not block us, but
-   confirm with WarChaos staff that playing via Wine is allowed.
+4. **Upstream do patch.** Submeter ao wine-devel — faria builds futuras do Gcenx já trazerem o fix.
 
-5. **Share this guide.** The repo is ready to push to GitHub. Let the WarChaos Discord
-   know so other Mac users can benefit.
+5. **Compartilhar.** O repo está pronto para push no GitHub. Avisar no Discord do WarChaos.
 
 ---
 
-## Credits
-- [Wine](https://www.winehq.org/) — Windows API translation
-- [Gcenx macOS Wine Builds](https://github.com/Gcenx/macOS_Wine_builds) — Prebuilt Wine for macOS
-- [Microsoft ICU](https://www.nuget.org/packages/Microsoft.ICU.ICU4C.Runtime) — ICU for .NET
+## Créditos
+- [Wine](https://www.winehq.org/) — tradução de API Windows
+- [Gcenx macOS Wine Builds](https://github.com/Gcenx/macOS_Wine_builds) — Wine prebuilt para macOS
+- [Microsoft ICU](https://www.nuget.org/packages/Microsoft.ICU.ICU4C.Runtime) — ICU para .NET
 - [Apple Game Porting Toolkit](https://developer.apple.com/games/) — D3DMetal
-- WarChaos team — the game
+- [displayplacer](https://github.com/jakehilborn/displayplacer) — gerenciamento de monitores via CLI
+- WarChaos team — o jogo
