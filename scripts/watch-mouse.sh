@@ -1,13 +1,14 @@
 #!/bin/bash
 WATCH=/tmp/wc-mouse-watch.log
+TRACE=/tmp/wc-trackpad2.log
 GAME_LOG="$HOME/Desktop/Warface/WarChaos/Game.log"
-TRACE_LOG=/tmp/wc-trace.log
 : > "$WATCH"
-echo "[watcher started $(date '+%H:%M:%S')] tailing: $GAME_LOG , $TRACE_LOG" >> "$WATCH"
-tail -F -n0 "$GAME_LOG" "$TRACE_LOG" 2>/dev/null | while IFS= read -r line; do
+echo "[watcher $(date '+%H:%M:%S')] tailing $TRACE + $GAME_LOG" >> "$WATCH"
+tail -F -n0 "$TRACE" "$GAME_LOG" 2>/dev/null | while IFS= read -r line; do
   case "$line" in
-    *[Mm]ouse*|*[Rr]aw*|*[Ii]nput*|*[Rr]elative*|WM_INPUT|*[Pp]ointer*|*[Cc]ursor*|*[Gg]rab*|*[Cc]lip*|*[Dd]elta*|\
-    *err:*|*fixme:*|*warn:*|*abort*|*[Ee]xception*|*[Cc]rash*|*[Ff]ailed*|*use_raw_input*)
-      printf '%s | %s\n' "$(date '+%H:%M:%S')" "$line" >> "$WATCH" ;;
+    *ClipCursor*|*clip_cursor*|*clippingCursor*|*hideCursor*|*unhideCursor*|*clientWants*|\
+    *MOUSE_MOVED*|*[Rr]elative*|*[Aa]bsolute*|*WM_INPUT*|*capture*display*|*CGCapture*|\
+    *fullscreen*[01]*|*err:macdrv*|*fixme:macdrv*)
+      printf '%s | %s\n' "$(date '+%H:%M:%S.%3N')" "$line" >> "$WATCH" ;;
   esac
 done

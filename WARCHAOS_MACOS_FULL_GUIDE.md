@@ -2,7 +2,7 @@
 
 **Data:** 2026-06-18  
 **Testado em:** MacBook Air M4, macOS 27 Golden Gate Developer Beta  
-**Status:** 🟢 **JOGÁVEL** — Launcher 100% funcional, jogo chega ao lobby, mouselook FPS funcionando com patch de raw input.
+**Status:** 🟢 **JOGÁVEL** — Launcher 100% funcional, jogo chega ao lobby, mouselook FPS funcionando com patch de raw input (mouse USB + trackpad, monitor externo + nativo).
 
 ---
 
@@ -58,7 +58,11 @@ WarChaos Begins.exe (launcher Qt 6 QML)
 ## O que não funciona
 
 ### Mouse FPS — residual
-O patch de raw input resolveu o problema principal (~2s de lag em flicks). Falhas residuais ocorrem **só durante quedas de FPS** (frame spikes) — o game loop do CryEngine não processa `WM_INPUT` a tempo e deltas se acumulam/perdem. É gargalo de render, não do patch.
+O patch de raw input resolveu o problema principal (~2s de lag em flicks). Funciona em:
+- Monitor externo 144hz com mouse USB
+- Monitor nativo (retina) com trackpad
+
+Falhas residuais ocorrem **só durante quedas de FPS** (frame spikes) — o game loop do CryEngine não processa `WM_INPUT` a tempo e deltas se acumulam/perdem. É gargalo de render, não do patch.
 
 ### Issues menores
 - **Multi-monitor:** macOS 27 beta tem bugs de window management com 3 monitores
@@ -237,9 +241,11 @@ Isso também explica por que `UseConfinementCursorClipping=N` (o handler de clip
 
 **Não criamos RID novo** — a roda já existe no Wine. Portamos o comportamento de relative-pointer do `winewayland.drv` (GitLab MR !5869, `dlls/winewayland.drv/wayland_pointer.c`) para o `winemac.drv`. O driver wayland é irmão do mac com a mesma arquitetura, e seu path de relative-pointer é exatamente o padrão necessário.
 
-**Patch:** `patches/winemac-rawinput.patch` — 3 arquivos, ~16 linhas:
+**Patch:** `patches/winemac-rawinput.patch` — 3 arquivos, ~25 linhas:
 - `macdrv_cocoa.h` / `macdrv_main.c`: adiciona registry key opt-in `HKCU\Software\Wine\Mac Driver\RawInput` (mesmo padrão da key `rawinput` do MR do Wayland).
-- `cocoa_app.m` `handleMouseMove:`: quando `RawInput=Y` **e** o client escondeu o cursor **e** está fazendo clip (condição canônica de pointer-grab de FPS, equivalente ao `!is_visible && constraint_hwnd` do winewayland), sempre toma o branch relativo e alimenta os deltas reais do CGEvent. `macdrv_mouse_moved()` + `NtUserSendHardwareInput` + win32u fazem o resto (síntese de `WM_INPUT`). Sem mudança no `mouse.c`.
+- `cocoa_app.m` `handleMouseMove:`: quando `RawInput=Y`, **sempre** toma o branch relativo e alimenta os deltas reais do CGEvent (`kCGMouseEventDeltaX/Y`). Não exige `ClipCursor` ou cursor oculto — o jogo registra raw input via `RegisterRawInputDevices` mas pode não fazer o grab (ex: quando acha que está em fullscreen e o SO cuida do cursor). `macdrv_mouse_moved()` + `NtUserSendHardwareInput` + win32u fazem o resto (síntese de `WM_INPUT`). Sem mudança no `mouse.c`.
+
+**Por que a condição foi afrouxada (aprendizado do trackpad):** a primeira versão do patch exigia `clientWantsCursorHidden && clippingCursor` (o grab clássico de FPS). Trace do Wine revelou que no monitor nativo com trackpad, o CryEngine **nunca** chamava `ClipCursor` nem `hideCursor` — acha que está em fullscreen (`Game.log: "Fullscreen: True"`) mas o winemac trata como janela (`fullscreen 0` no trace) → dessincronia → sem grab → patch nunca ativava → flicks caíam na heurística border-pinned bugada. A versão final ativa relativo sempre que `RawInput=Y`, cobrindo ambos os cenários.
 
 **Build & install:** `scripts/build-wine-mac-rawinput.sh`:
 - shallow-clone do Wine no tag matching o Gcenx instalado

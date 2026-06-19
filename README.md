@@ -12,7 +12,8 @@ Não há build nativa para macOS. Funciona empilhando três camadas de traduçã
 | **D3DMetal** (GPTK) | DirectX 11/12 → Metal |
 
 > **Status:** 🟢 **JOGÁVEL** no Apple Silicon (M4 / macOS 27 beta). Launcher funcional,
-> jogo abre, partidas rodam, mouselook FPS com patch de raw input.
+> jogo abre, partidas rodam, mouselook FPS funcionando com patch de raw input
+> (mouse USB + trackpad, monitor externo + nativo).
 
 ---
 
@@ -63,7 +64,7 @@ Para detalhes técnicos completos (causa-raiz de cada erro, o patch do mouse, et
 4. **Wine prefix** dedicado em `~/WarChaos-wine`
 5. **ICU 72** + shim forwarder `icu.dll` — .NET/CryEngine precisam de ICU real
 6. **Registry fixes** — Direct3D backbuffer, Decorated, RawInput, WPF software render
-7. **Patch do mouse** — compila `winemac.drv` com raw input relativo (porta do `winewayland.drv` MR !5869), resolve o lag de ~2s no mouselook FPS
+7. **Patch do mouse** — compila `winemac.drv` com raw input relativo (porta do `winewayland.drv` MR !5869), resolve o lag de ~2s no mouselook FPS. Funciona com mouse USB + trackpad, monitor externo + nativo
 8. **Monitor 144hz** — detecta e configura monitor externo high-hz como principal
 9. **Download do jogo** — baixa o launcher (`WarChaos Begins.exe`) do CDN oficial (`cdn.warchaos.xyz`) e abre no Wine; o launcher faz o download dos ~29 GB
 10. **Lançador** — `~/Desktop/WarChaos.app` (double-clickable)
