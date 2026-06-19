@@ -72,7 +72,7 @@ O patch de raw input resolveu o problema principal (~2s de lag em flicks). Falha
 ## Instalação
 
 ### Pré-requisitos
-- Mac Apple Silicon (M1/M2/M3/M4)
+- Mac Apple Silicon (M1/M2/M3/M4/M5)
 - macOS 14+ (testado no 27 beta)
 - ~65 GB livres em disco
 - Conta admin

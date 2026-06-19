@@ -183,66 +183,96 @@ else
   fi
 fi
 
-# --- 8. Monitor 144hz + lançador --------------------------------------------
-say "Passo 8/9: Monitor e lançador"
+# --- 8. Monitor (interativo) ------------------------------------------------
+say "Passo 8/9: Monitor de jogo (opcional)"
 
-# Detectar monitores externos
+# Detectar monitores e deixar o usuário escolher qual usar como principal.
+# Não assume 144hz — qualquer monitor externo (ou o próprio built-in) pode
+# ser escolhido. O Wine/jogo abre na main display (origin 0,0).
+SELECTED_MONITOR_ID=""
+SELECTED_MONITOR_DESC=""
+
 if has displayplacer; then
-  EXTERNAL_COUNT=$(displayplacer list 2>/dev/null | grep -c 'external screen')
-  if [ "$EXTERNAL_COUNT" -gt 0 ]; then
-    info "Monitores detectados:"
-    displayplacer list 2>/dev/null | grep -E 'Type:|Resolution:|Hertz:|Origin:' | sed 's/^/    /'
-
-    HIGH_HZ_ID=$(displayplacer list 2>/dev/null | awk '
-      /^Persistent screen id:/{id=$4}
-      /^Hertz:/{hz=$2}
-      /^Type:/{type=$0}
-      /^Origin:/{if(hz+0>60 && type !~ /built/) print id}
-    ' | head -1)
-
-    if [ -n "$HIGH_HZ_ID" ]; then
-      HIGH_HZ=$(displayplacer list 2>/dev/null | awk -v id="$HIGH_HZ_ID" '
-        /^Persistent screen id:/{cur=$4}
-        /^Hertz:/{if(cur==id) print $2}
-      ')
-      ask "Monitor ${HIGH_HZ}hz detectado (id ${HIGH_HZ_ID:0:8}...). Configurar como principal para o jogo? [S/n]"
-      if [ "${ans:-s}" != "n" ]; then
-        # Salvar config atual e aplicar
-        displayplacer list 2>/dev/null | grep '^displayplacer ' > /tmp/wc-display-restore.txt
-        # Reescrever set-gaming-monitor.sh com o ID detectado
-        "$REPO_ROOT/scripts/set-gaming-monitor.sh" 2>/dev/null || true
-        # Aplicar diretamente: colocar o high-hz em (0,0)
-        info "Aplicando layout..."
-        # Construir comando displayplacer com o monitor high-hz em (0,0)
-        displayplacer list 2>/dev/null | awk -v target="$HIGH_HZ_ID" '
-          BEGIN { cmd="displayplacer" }
-          /^Persistent screen id:/{id=$4; spec=""}
-          /^Resolution:/{res=$2}
-          /^Hertz:/{hz=$2}
-          /^Color Depth:/{cd=$3}
-          /^Scaling:/{sc=$2}
-          /^Origin:/{split($2,a,/[(,)]/); ox=a[2]; oy=a[3]}
-          /^Enabled:/{en=$2}
-          /^Rotation:/{rot=$2}
-          /^Type:/{
-            if(id==target){ nx=0; ny=0 } else { nx=ox; ny=oy }
-            # lowercase scaling
-            gsub(/.*/,tolower(sc),sc)
-            cmd=sprintf("%s \"id:%s res:%s hz:%s color_depth:%s enabled:%s scaling:%s origin:(%s,%s) degree:%s\"", cmd, id, res, hz, cd, tolower(en), sc, nx, ny, rot)
-          }
-          END{ print cmd }
-        ' | bash 2>/dev/null || true
-        ok "Monitor ${HIGH_HZ}hz configurado como principal"
-        info "Para reverter: $REPO_ROOT/scripts/set-gaming-monitor.sh -r"
-      fi
+  # Coletar monitores num array paralelo: id | descrição
+  MONITOR_IDS=()
+  MONITOR_DESCS=()
+  while IFS='|' read -r mid mtype mres mhz; do
+    MONITOR_IDS+=("$mid")
+    if echo "$mtype" | grep -q 'built in'; then
+      MONITOR_DESCS+=("Built-in (${mres} @ ${mhz}hz)")
     else
-      info "Nenhum monitor >60hz detectado. Pulando configuração de monitor."
+      MONITOR_DESCS+=("Externo (${mres} @ ${mhz}hz) — ${mtype}")
+    fi
+  done < <(displayplacer list 2>/dev/null | awk '
+    /^Persistent screen id:/{id=$4}
+    /^Type:/{type=$0; sub(/Type: /,"",type)}
+    /^Resolution:/{res=$2}
+    /^Hertz:/{hz=$2}
+    /^Origin:/{
+      # tipo pode conter "built in screen" ou "external screen" e tamanho
+      gsub(/^[ \t]+/,"",type)
+      print id "|" type "|" res "|" hz
+      id=""; type=""; res=""; hz=""
+    }
+  ')
+
+  MONITOR_COUNT=${#MONITOR_IDS[@]}
+  if [ "$MONITOR_COUNT" -gt 1 ]; then
+    info "Monitores detectados:"
+    for i in "${!MONITOR_DESCS[@]}"; do
+      printf "    ${B}[%d]${N} %s\n" "$((i+1))" "${MONITOR_DESCS[$i]}"
+    done
+    echo
+    ask "Qual monitor usar como principal para o jogo? [1-$MONITOR_COUNT, ou Enter para pular]"
+    if [ -n "$ans" ] && [ "$ans" -ge 1 ] 2>/dev/null && [ "$ans" -le "$MONITOR_COUNT" ]; then
+      idx=$((ans-1))
+      SELECTED_MONITOR_ID="${MONITOR_IDS[$idx]}"
+      SELECTED_MONITOR_DESC="${MONITOR_DESCS[$idx]}"
+      info "Selecionado: $SELECTED_MONITOR_DESC"
+
+      # Salvar layout atual para reverter depois
+      displayplacer list 2>/dev/null | grep '^displayplacer ' > /tmp/wc-display-restore.txt
+      info "Layout atual salvo em /tmp/wc-display-restore.txt"
+
+      # Aplicar: monitor selecionado em (0,0), os outros reposicionados
+      info "Aplicando layout (monitor selecionado como principal)..."
+      displayplacer list 2>/dev/null | awk -v target="$SELECTED_MONITOR_ID" '
+        BEGIN { cmd="displayplacer"; placed_target=0 }
+        /^Persistent screen id:/{id=$4}
+        /^Resolution:/{res=$2}
+        /^Hertz:/{hz=$2}
+        /^Color Depth:/{cd=$3}
+        /^Scaling:/{sc=$2}
+        /^Origin:/{split($2,a,/[(,)]/); ox=a[2]; oy=a[3]}
+        /^Enabled:/{en=$2}
+        /^Rotation:/{rot=$2}
+        /^Type:/{
+          if(id==target){
+            nx=0; ny=0; placed_target=1
+          } else {
+            # colocar à direita do principal, empilhando horizontamente
+            if(placed_target){ nx=cur_right; ny=0 } else { nx=ox; ny=oy }
+          }
+          # avançar o "cursor" horizontal para o próximo monitor
+          if(id==target){ cur_right=res; sub(/x.*/,"",cur_right) }
+          gsub(/.*/,tolower(sc),sc)
+          gsub(/^[ \t]+/,"",tolower(en))
+          cmd=sprintf("%s \"id:%s res:%s hz:%s color_depth:%s enabled:%s scaling:%s origin:(%d,%d) degree:%s\"", cmd, id, res, hz, cd, tolower(en), sc, nx, ny, rot)
+        }
+        END{ print cmd }
+      ' | bash 2>/dev/null || true
+
+      ok "Monitor configurado como principal"
+      info "Para reverter depois: $REPO_ROOT/scripts/set-gaming-monitor.sh -r"
+    else
+      info "Monitor pulado — o jogo abrirá na main display atual do macOS."
     fi
   else
-    info "Nenhum monitor externo detectado. Pulando."
+    info "Apenas 1 monitor detectado. Pulando (o jogo já abre nele)."
   fi
 else
-  info "displayplacer não disponível. Pulando configuração de monitor."
+  info "displayplacer não instalado. Pulando configuração de monitor."
+  info "Para configurar depois: brew install displayplacer && $REPO_ROOT/scripts/set-gaming-monitor.sh"
 fi
 
 # --- 9. Download e instalação do jogo ---------------------------------------

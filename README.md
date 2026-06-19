@@ -1,7 +1,7 @@
 # WarChaos no Apple Silicon (macOS)
 
 Guia + scripts para rodar **WarChaos** (FPS CryEngine/Warface, Windows-only) em
-**Macs Apple Silicon (M1–M4)** via **Wine + Rosetta 2 + D3DMetal**.
+**Macs Apple Silicon (M1–M5)** via **Wine + Rosetta 2 + D3DMetal**.
 
 Não há build nativa para macOS. Funciona empilhando três camadas de tradução:
 
@@ -27,7 +27,7 @@ Não há build nativa para macOS. Funciona empilhando três camadas de traduçã
 
 ## Requisitos
 
-- Mac Apple Silicon (M1/M2/M3/M4)
+- Mac Apple Silicon (M1/M2/M3/M4/M5)
 - macOS 14 (Sonoma) ou superior
 - **~65 GB livres** em disco
 - Conta admin
